@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EOPF STAC Explorer</title>
+    
+    <!-- Google Fonts: Bricolage Grotesque -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <link rel="stylesheet" href="style.css">
+    
+</head>
+<body class="bg-slate-100 overflow-hidden text-slate-800">
+
+    <!-- Full Screen Map -->
+    <div id="map"></div>
+
+    <!-- Floating Sidebar UI -->
+    <div class="sidebar bg-white rounded-3xl shadow-2xl border border-slate-100/50 backdrop-blur-sm">
+        
+        <div class="p-6 pb-2 bg-white z-10 border-b border-slate-50">
+            <div class="flex items-center gap-2 mb-1">
+                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900">EOPF Explorer</h1>
+            </div>
+            <p class="text-sm text-slate-500 font-medium leading-tight">Search ESA Catalogue Data</p>
+        </div>
+
+        <div class="scroll-area p-6 pt-4 flex-1 space-y-6 bg-white/80">
+            
+            <form id="searchForm" class="space-y-5">
+                <!-- Location Search -->
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">Location</label>
+                    <div class="flex shadow-sm rounded-xl overflow-hidden border border-slate-200 bg-white">
+                        <input type="text" id="locationSearch" placeholder="e.g. Ukraine, France..." class="flex-1 p-3 text-sm border-none outline-none font-medium text-slate-700">
+                        <button type="button" id="geoBtn" class="bg-indigo-50 text-indigo-600 px-4 flex items-center justify-center font-bold text-xs border-l border-indigo-100 hover:bg-indigo-100 transition-colors">Locate</button>
+                    </div>
+                    <div id="geoStatus" class="h-4 text-[11px] font-medium truncate"></div>
+                </div>
+
+                <!-- Filters -->
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Collections</label>
+                    <input type="text" id="keywordInput" placeholder="Filter ID or Properties..." class="w-full p-3 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-3 hidden">
+                    
+                    <div class="bg-slate-50 rounded-xl border border-slate-200 p-2 max-h-48 overflow-y-auto scroll-area" id="collectionList">
+                        <div class="text-center py-4 text-xs text-slate-400 italic">Loading collections...</div>
+                    </div>
+                </div>
+
+                <!-- Advanced -->
+                <details class="group">
+                    <summary class="flex items-center justify-between cursor-pointer text-slate-500 text-xs font-bold uppercase tracking-wider hover:text-indigo-600 select-none bg-white p-2 rounded-lg border border-slate-200">
+                        <span>Advanced (Date/BBox)</span>
+                        <svg class="w-4 h-4 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+                    </summary>
+                    <div class="mt-3 space-y-3 p-1">
+                        <input type="text" id="bboxInput" placeholder="Raw BBox" class="w-full p-2 text-xs border border-slate-200 rounded-lg font-mono">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="startDate" class="w-full p-2 text-xs border border-slate-200 rounded-lg">
+                            <input type="date" id="endDate" class="w-full p-2 text-xs border border-slate-200 rounded-lg">
+                        </div>
+                    </div>
+                </details>
+
+                <button type="submit" id="searchBtn" class="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition-all transform active:scale-95 flex items-center justify-center gap-2 text-sm">
+                    Find Satellite Data
+                </button>
+                <div id="errorMsg" class="hidden p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-600 font-medium text-center break-words"></div>
+            </form>
+            
+            <div id="dataRangeSummary" class="hidden p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </div>
+                <div class="text-xs">
+                    <span class="block text-slate-800 font-bold">Data Found</span>
+                    <span id="rangeText" class="text-slate-500 font-medium">...</span>
+                </div>
+            </div>
+
+            <!-- Results List -->
+            <div id="resultsContainer" class="space-y-3 pb-8">
+                 <div class="text-center py-8 opacity-50">
+                    <p class="text-sm font-medium text-slate-400">Ready to search.</p>
+                </div>
+            </div>
+            
+        </div>
+        
+        <div class="p-4 bg-white border-t border-slate-100">
+             <button onclick="clearMap()" class="w-full py-3 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-bold border border-slate-200 hover:border-rose-200 transition-all text-xs flex items-center justify-center gap-2">Clear Filters</button>
+        </div>
+    </div>
+
+    <!-- DETAILS MODAL -->
+    <div id="detailsModal" class="fixed inset-0 z-[2000] hidden flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div class="modal-backdrop absolute inset-0" onclick="closeModal()"></div>
+        
+        <!-- Content -->
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden relative modal-content">
+            
+            <!-- Close Button -->
+            <button onclick="closeModal()" class="absolute top-4 right-4 z-50 p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
+                <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            <!-- Header -->
+            <div class="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <div id="modalCollectionBadge" class="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase mb-2 text-white">Collection</div>
+                    <h1 id="modalTitle" class="text-xl md:text-2xl font-bold text-slate-900 font-mono break-all">ITEM_ID</h1>
+                    <p id="modalDate" class="text-sm text-slate-500 font-medium mt-1">Date Time</p>
+                </div>
+                
+                <!-- Primary Action Button -->
+                <a id="openBrowserBtn" href="#" target="_blank" class="shrink-0 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-200 flex items-center gap-2 transition-transform transform active:scale-95">
+                    <span>Open in Official Browser</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
+            </div>
+
+            <!-- Body -->
+            <div class="flex-1 overflow-y-auto p-6 md:p-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <!-- Left: Metadata Grid -->
+                    <div>
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Item Metadata</h2>
+                        <div class="grid grid-cols-2 gap-4" id="modalMetadata">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Right: Quick Assets -->
+                    <div>
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Quick Assets</h2>
+                        <div class="space-y-2" id="modalAssets">
+                            <!-- Populated via JS -->
+                        </div>
+                        <div class="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700 border border-blue-100">
+                            <strong>Note:</strong> For full download options and advanced processing, please use the official browser button above.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
