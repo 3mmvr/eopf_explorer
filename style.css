@@ -14,23 +14,48 @@ body {
     z-index: 0;
 }
 
-/* Floating Sidebar */
-.sidebar {
+/* Responsive Sidebar / Bottom Sheet */
+.sidebar-container {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 420px;
-    max-height: calc(100vh - 40px);
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    overflow: hidden; 
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(241, 245, 249, 0.5);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+/* Desktop Styles */
+@media (min-width: 768px) {
+    .sidebar-container {
+        top: 20px;
+        left: 20px;
+        width: 420px;
+        max-height: calc(100vh - 40px);
+        border-radius: 1.5rem; /* rounded-3xl */
+    }
+}
+
+/* Mobile Styles */
+@media (max-width: 767px) {
+    .sidebar-container {
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-height: 60vh; /* Takes up bottom 60% */
+        border-top-left-radius: 1.5rem;
+        border-top-right-radius: 1.5rem;
+        border-bottom: none;
+    }
 }
 
 .scroll-area {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
 }
 .scroll-area::-webkit-scrollbar {
     width: 6px;

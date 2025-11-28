@@ -4,19 +4,9 @@ const STAC_BROWSER_BASE = 'https://stac.browser.user.eopf.eodc.eu/collections';
 
 let map, geoJsonLayer, currentData;
 
-// --- Distinct Color Palette ---
 const DISTINCT_COLORS = [
-    '#2563eb', // Blue (S1 GRD)
-    '#7c3aed', // Violet (S1 SLC)
-    '#db2777', // Pink (S1 OCN)
-    '#16a34a', // Green (S2 L2A)
-    '#0d9488', // Teal (S2 L1C)
-    '#ca8a04', // Gold (S3 EFR)
-    '#ea580c', // Orange (S3 ERR)
-    '#dc2626', // Red (S3 RBT)
-    '#9333ea', // Purple
-    '#0891b2', // Cyan
-    '#be123c'  // Rose
+    '#2563eb', '#7c3aed', '#db2777', '#16a34a', '#0d9488', 
+    '#ca8a04', '#ea580c', '#dc2626', '#9333ea', '#0891b2', '#be123c'
 ];
 const collectionColorMap = {};
 
@@ -46,12 +36,9 @@ async function fetchCollections() {
         list.innerHTML = '';
         
         let colorIndex = 0;
-        
-        // Sort collections roughly by platform for readability
         const collections = (data.collections || []).sort((a,b) => a.id.localeCompare(b.id));
 
         collections.forEach(c => {
-            // Assign unique color
             if (!collectionColorMap[c.id]) {
                 collectionColorMap[c.id] = DISTINCT_COLORS[colorIndex % DISTINCT_COLORS.length];
                 colorIndex++;
@@ -60,12 +47,12 @@ async function fetchCollections() {
             
             const div = document.createElement('div');
             div.innerHTML = `
-                <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors group collection-item">
+                <label class="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors group collection-item">
                     <input type="checkbox" name="collections" value="${c.id}" class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                     <div class="flex-1 min-w-0">
                         <div class="text-xs font-bold text-slate-700 truncate" title="${c.title}">${c.title || c.id}</div>
                     </div>
-                    <span class="w-3 h-3 rounded-full shadow-sm" style="background-color: ${color}"></span>
+                    <span class="w-3 h-3 rounded-full shadow-sm shrink-0" style="background-color: ${color}"></span>
                 </label>`;
             list.appendChild(div);
         });
@@ -114,11 +101,19 @@ async function handleSearch(e) {
         renderResults(currentData);
         updateMapFeatures(currentData);
         
+        // ACCURATE COUNT LOGIC
         const summary = document.getElementById('dataRangeSummary');
-        const rangeText = document.getElementById('rangeText');
+        const totalCountText = document.getElementById('totalCountText');
+        
         if (data.features.length) {
             summary.classList.remove('hidden');
-            rangeText.textContent = `${data.features.length} Items Found`;
+            let totalMatches = data.context && data.context.matched ? data.context.matched : data.features.length;
+            
+            if (totalMatches > data.features.length) {
+                totalCountText.innerHTML = `Found <b>${totalMatches}</b> total items (showing top ${data.features.length})`;
+            } else {
+                totalCountText.innerHTML = `Found <b>${data.features.length}</b> items`;
+            }
         } else {
             summary.classList.add('hidden');
         }
@@ -154,7 +149,7 @@ function renderResults(data) {
                         <span class="text-[10px] text-slate-400 font-medium pt-0.5">${date}</span>
                 </div>
             </div>
-            <div class="self-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="self-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
                     <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             </div>
         </div>`;
@@ -168,32 +163,22 @@ function updateMapFeatures(data) {
     geoJsonLayer = L.geoJSON(data, {
         style: (feature) => {
             const c = getCollectionColor(feature.collection);
-            return { 
-                color: c, 
-                weight: 2,
-                opacity: 1,
-                fillColor: c, 
-                fillOpacity: 0.2
-            };
+            return { color: c, weight: 2, opacity: 1, fillColor: c, fillOpacity: 0.2 };
         },
         onEachFeature: (feature, layer) => {
             layer.on('click', () => {
                 const idx = currentData.features.findIndex(f => f.id === feature.id);
                 if (idx >= 0) openModal(idx);
             });
-            layer.on('mouseover', function () { this.setStyle({ weight: 4, fillOpacity: 0.4 }); });
-            layer.on('mouseout', function () { geoJsonLayer.resetStyle(this); });
         }
     }).addTo(map);
     map.fitBounds(geoJsonLayer.getBounds(), { padding: [50,50] });
 }
 
-// --- MODAL & EXTERNAL LINKS ---
 window.openModal = function(idx) {
     const item = currentData.features[idx];
     if (!item) return;
 
-    // 1. Header
     document.getElementById('modalTitle').textContent = item.id;
     document.getElementById('modalDate').textContent = new Date(item.properties.datetime).toLocaleString();
     
@@ -201,14 +186,11 @@ window.openModal = function(idx) {
     badge.textContent = item.collection;
     const color = getCollectionColor(item.collection);
     badge.style.backgroundColor = color;
-    // Calculate approximate contrast
     badge.style.color = '#ffffff'; 
 
-    // 2. Button URL
     const browserUrl = `${STAC_BROWSER_BASE}/${item.collection}/items/${item.id}`;
     document.getElementById('openBrowserBtn').href = browserUrl;
 
-    // 3. Metadata Grid
     const metaDiv = document.getElementById('modalMetadata');
     const props = item.properties;
     const importantKeys = ['platform', 'processing:level', 'eo:cloud_cover', 'gsd', 'instruments', 's1:orbit_source'];
@@ -225,7 +207,6 @@ window.openModal = function(idx) {
             </div>`;
     }).join('');
 
-    // 4. Quick Assets
     const assetsDiv = document.getElementById('modalAssets');
     assetsDiv.innerHTML = Object.entries(item.assets).slice(0, 5).map(([key, asset]) => {
         const type = asset.type || 'unknown';
@@ -282,6 +263,5 @@ function clearMap() {
     if(geoJsonLayer) map.removeLayer(geoJsonLayer);
     document.getElementById('resultsContainer').innerHTML = '<div class="text-center py-8 opacity-50"><p class="text-sm font-medium text-slate-400">Ready.</p></div>';
     document.getElementById('locationSearch').value = '';
-    document.getElementById('keywordInput').value = '';
     document.getElementById('geoStatus').textContent = '';
 }
