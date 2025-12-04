@@ -7,6 +7,7 @@ let collectionLayers = {};
 let currentData = { features: [], context: {} };
 let allFeatures = [];
 let nextLink = null;
+let minTimestamp, maxTimestamp; // Global ranges
 
 const DISTINCT_COLORS = [
     '#2563eb', '#7c3aed', '#db2777', '#16a34a', '#0d9488', 
@@ -22,11 +23,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchForm').addEventListener('submit', (e) => handleSearch(e));
     document.getElementById('geoBtn').addEventListener('click', geocodeLocation);
     document.getElementById('locationSearch').addEventListener('keypress', (e) => { if(e.key==='Enter'){e.preventDefault();geocodeLocation()} });
+    document.getElementById('sortOrder').addEventListener('change', (e) => handleSearch(e));
     
-    const slider = document.getElementById('cloudSlider');
-    slider.addEventListener('input', (e) => {
+    // Cloud Slider Logic
+    const cloudSlider = document.getElementById('cloudSlider');
+    cloudSlider.addEventListener('input', (e) => {
         document.getElementById('cloudVal').textContent = `Max ${e.target.value}%`;
         applyFilters();
+    });
+
+    // Time Slider Logic
+    const tStart = document.getElementById('timeStart');
+    const tEnd = document.getElementById('timeEnd');
+    
+    [tStart, tEnd].forEach(el => {
+        el.addEventListener('input', () => {
+            const v1 = parseInt(tStart.value);
+            const v2 = parseInt(tEnd.value);
+            if (v1 > v2) { // prevent crossover
+                if (el === tStart) tStart.value = v2;
+                else tEnd.value = v1;
+            }
+            updateTimeHighlight();
+            updateTimeLabel();
+            applyFilters();
+        });
     });
 });
 
@@ -36,6 +57,57 @@ function initMap() {
     map = L.map('map', { zoomControl: false }).setView([48.0, 14.0], 5);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
     L.control.zoom({ position: 'topright' }).addTo(map);
+}
+
+// --- TIME SLIDER HELPERS ---
+function initTimeSlider(features) {
+    if (!features || features.length === 0) {
+        document.getElementById('timeFilterContainer').classList.add('hidden');
+        return;
+    }
+    
+    const times = features.map(f => new Date(f.properties.datetime).getTime());
+    minTimestamp = Math.min(...times);
+    maxTimestamp = Math.max(...times);
+    
+    // Just one moment in time?
+    if (minTimestamp === maxTimestamp) {
+        // artificially widen range by 1 day for UI
+        minTimestamp -= 86400000;
+        maxTimestamp += 86400000;
+    }
+
+    const tStart = document.getElementById('timeStart');
+    const tEnd = document.getElementById('timeEnd');
+    
+    tStart.min = minTimestamp; tStart.max = maxTimestamp; tStart.value = minTimestamp;
+    tEnd.min = minTimestamp; tEnd.max = maxTimestamp; tEnd.value = maxTimestamp;
+    
+    updateTimeHighlight();
+    updateTimeLabel();
+    document.getElementById('timeFilterContainer').classList.remove('hidden');
+}
+
+function updateTimeHighlight() {
+    const start = parseInt(document.getElementById('timeStart').value);
+    const end = parseInt(document.getElementById('timeEnd').value);
+    const total = maxTimestamp - minTimestamp;
+    const left = ((start - minTimestamp) / total) * 100;
+    const right = 100 - (((end - minTimestamp) / total) * 100);
+    
+    const hl = document.getElementById('timeTrackHighlight');
+    hl.style.left = left + "%";
+    hl.style.right = right + "%";
+}
+
+function updateTimeLabel() {
+    const s = new Date(parseInt(document.getElementById('timeStart').value));
+    const e = new Date(parseInt(document.getElementById('timeEnd').value));
+    const opts = { month: 'short', day: 'numeric' };
+    // Add year if different
+    if (s.getFullYear() !== new Date().getFullYear()) opts.year = '2-digit';
+    
+    document.getElementById('timeVal').textContent = `${s.toLocaleDateString(undefined, opts)} - ${e.toLocaleDateString(undefined, opts)}`;
 }
 
 async function fetchCollections() {
@@ -78,6 +150,7 @@ async function handleSearch(e, urlOverride = null, isAppend = false) {
     const btn = document.getElementById('searchBtn');
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     const errorMsg = document.getElementById('errorMsg');
+    const sortDir = document.getElementById('sortOrder').value;
     
     const bbox = document.getElementById('bboxInput').value.split(',').map(Number);
     const cols = Array.from(document.querySelectorAll('input[name="collections"]:checked')).map(c => c.value);
@@ -94,6 +167,7 @@ async function handleSearch(e, urlOverride = null, isAppend = false) {
         Object.values(collectionLayers).forEach(layer => map.removeLayer(layer));
         collectionLayers = {};
         updateDiscreteLayerList([]);
+        document.getElementById('timeFilterContainer').classList.add('hidden');
     } else {
         loadMoreBtn.innerHTML = 'Loading...';
         loadMoreBtn.disabled = true;
@@ -104,7 +178,7 @@ async function handleSearch(e, urlOverride = null, isAppend = false) {
         bbox: bbox,
         datetime: `${toRfc3339(document.getElementById('startDate').value)}/${toRfc3339(document.getElementById('endDate').value, true)}`,
         limit: 100, 
-        sortby: [{ field: "properties.datetime", direction: "desc" }]
+        sortby: [{ field: "properties.datetime", direction: sortDir }]
     };
 
     try {
@@ -130,8 +204,15 @@ async function handleSearch(e, urlOverride = null, isAppend = false) {
         } else {
             allFeatures = data.features || [];
             currentData.context = data.context || {};
+            // Only init time slider on first load
+            initTimeSlider(allFeatures);
         }
         
+        // Recalculate slider range if appended data expands it?
+        // For simplicity, we keep initial range or re-init if significant change logic needed.
+        // Re-init for now to cover new dates loaded
+        initTimeSlider(allFeatures);
+
         applyFilters();
 
         if (nextLink) {
@@ -155,16 +236,25 @@ function loadMore() { if(nextLink) handleSearch(null, nextLink, true); }
 
 function applyFilters() {
     const maxCloud = parseInt(document.getElementById('cloudSlider').value, 10);
+    
+    // Time range filter
+    const tStartVal = parseInt(document.getElementById('timeStart').value);
+    const tEndVal = parseInt(document.getElementById('timeEnd').value);
+
     const filtered = allFeatures.filter(f => {
         const cloud = f.properties['eo:cloud_cover'];
-        return (cloud === undefined || cloud <= maxCloud);
+        const time = new Date(f.properties.datetime).getTime();
+        
+        const cloudOk = (cloud === undefined || cloud <= maxCloud);
+        const timeOk = (time >= tStartVal && time <= tEndVal);
+        
+        return cloudOk && timeOk;
     });
 
     const renderData = { ...currentData, features: filtered };
     renderResults(renderData);
     updateMapFeatures(renderData);
     
-    // Update Discrete Layer Control
     const activeCols = [...new Set(filtered.map(f => f.collection))];
     updateDiscreteLayerList(activeCols);
 
@@ -185,7 +275,7 @@ function updateDiscreteLayerList(activeCollections) {
         const color = getCollectionColor(colId);
         const div = document.createElement('div');
         div.className = "flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer group";
-        div.onclick = () => bringLayerToFront(colId); // Click to bring to front
+        div.onclick = () => bringLayerToFront(colId); 
         div.innerHTML = `
             <div class="flex items-center gap-2 overflow-hidden">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
@@ -215,7 +305,6 @@ function bringLayerToFront(colId) {
     const layer = collectionLayers[colId];
     if (layer && map.hasLayer(layer)) {
         layer.bringToFront();
-        // Optional: visual feedback flash
     }
 }
 
@@ -226,7 +315,6 @@ function updateMapFeatures(data) {
         grouped[f.collection].push(f);
     });
 
-    // Update layers
     Object.keys(grouped).forEach(colId => {
         if (!collectionLayers[colId]) {
             collectionLayers[colId] = L.featureGroup().addTo(map);
@@ -245,7 +333,6 @@ function updateMapFeatures(data) {
         }).addTo(layerGroup);
     });
 
-    // Cleanup empty
     Object.keys(collectionLayers).forEach(colId => {
         if (!grouped[colId]) {
             map.removeLayer(collectionLayers[colId]);
@@ -258,7 +345,7 @@ function updateMapFeatures(data) {
 function renderResults(data) {
     const container = document.getElementById('resultsContainer');
     if (!data?.features?.length) {
-        if(allFeatures.length > 0) container.innerHTML = '<div class="text-center py-8 text-xs text-slate-400">Hidden by Cloud Filter.</div>';
+        if(allFeatures.length > 0) container.innerHTML = '<div class="text-center py-8 text-xs text-slate-400">Hidden by Filters.</div>';
         else container.innerHTML = '<div class="text-center py-8 text-xs text-slate-400">No results found.</div>';
         return;
     }
@@ -410,6 +497,7 @@ function clearMap() {
     document.getElementById('locationSearch').value = '';
     document.getElementById('geoStatus').textContent = '';
     document.getElementById('timelineContainer').classList.add('hidden');
+    document.getElementById('timeFilterContainer').classList.add('hidden');
     updateDiscreteLayerList([]);
     allFeatures = []; nextLink = null; updateCount(0);
     document.getElementById('loadMoreBtn').classList.add('hidden');

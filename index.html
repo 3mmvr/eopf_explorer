@@ -86,6 +86,21 @@
                     <input type="range" id="cloudSlider" min="0" max="100" value="100" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
                 </div>
 
+                <!-- NEW: Time Filter (Client Side) -->
+                <div class="space-y-2 hidden" id="timeFilterContainer">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Time Range (Filter Results)</label>
+                        <span id="timeVal" class="text-[10px] font-bold text-indigo-600 font-mono">Loading...</span>
+                    </div>
+                    
+                    <div class="dual-range-wrapper px-1">
+                        <div class="dual-range-track"></div>
+                        <div class="dual-range-highlight" id="timeTrackHighlight" style="left: 0%; right: 0%;"></div>
+                        <input type="range" id="timeStart" min="0" max="100" value="0" class="dual-range-input">
+                        <input type="range" id="timeEnd" min="0" max="100" value="100" class="dual-range-input">
+                    </div>
+                </div>
+
                 <!-- Advanced -->
                 <details class="group">
                     <summary class="flex items-center justify-between cursor-pointer text-slate-500 text-xs font-bold uppercase tracking-wider hover:text-indigo-600 select-none bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
@@ -129,17 +144,22 @@
                 <div class="h-12 flex items-end gap-[1px] bg-white rounded-lg border border-slate-200 p-1" id="timelineBars"></div>
             </div>
 
-            <!-- Count Summary -->
-            <div id="dataRangeSummary" class="hidden p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-3">
+            <!-- Count Summary & Sort -->
+            <div id="dataRangeSummary" class="hidden p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
                     </div>
-                    <span class="text-xs font-bold text-slate-800">Results</span>
+                    <div>
+                        <span class="text-xs font-bold text-slate-800 block">Results</span>
+                        <span id="totalCountText" class="text-[10px] text-slate-500 font-medium">...</span>
+                    </div>
                 </div>
-                <div class="text-xs text-slate-600 font-medium leading-tight">
-                    <span id="totalCountText">...</span>
-                </div>
+                
+                <select id="sortOrder" class="text-[10px] py-1 pl-2 pr-6 bg-slate-50 border-none rounded-lg font-bold text-slate-600 focus:ring-0 cursor-pointer hover:bg-slate-100 transition-colors">
+                    <option value="desc">Newest</option>
+                    <option value="asc">Oldest</option>
+                </select>
             </div>
 
             <!-- Results List -->
@@ -209,6 +229,6 @@
     </div>
 
     <script src="script.js"></script>
-    
+   
 </body>
 </html>

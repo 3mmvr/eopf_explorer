@@ -85,15 +85,84 @@ body {
     background-color: #4f46e5 !important;
 }
 
-/* Range Slider */
+/* Standard Range Slider */
 input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
 input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
     background: #4f46e5; cursor: pointer; margin-top: -6px;
     box-shadow: 0 0 0 2px #fff, 0 2px 4px rgba(0,0,0,0.2);
+    pointer-events: auto;
 }
 input[type=range]::-webkit-slider-runnable-track {
     width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px;
+}
+
+/* Dual Range Slider Styles */
+.range-slider-container {
+    position: relative;
+    width: 100%;
+    height: 20px;
+}
+.range-slider-input {
+    position: absolute;
+    pointer-events: none;
+    -webkit-appearance: none;
+    z-index: 2;
+    height: 10px;
+    width: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+/* We use opacity 0 inputs on top of visual thumbs for better cross-browser logic in simple JS */
+/* Actually simpler: overlay two visible inputs with pointer-events: none on track/bg but auto on thumb */
+
+.dual-range-wrapper {
+    position: relative;
+    height: 20px;
+}
+.dual-range-input {
+    position: absolute;
+    pointer-events: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 100%;
+    background: none;
+    top: 0;
+    left: 0;
+    z-index: 10;
+}
+.dual-range-input::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #4f46e5;
+    cursor: pointer;
+    margin-top: 2px; /* align center */
+    box-shadow: 0 0 0 2px #fff, 0 2px 4px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 20;
+}
+.dual-range-track {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    z-index: 1;
+}
+.dual-range-highlight {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 4px;
+    background: #818cf8;
+    z-index: 2;
+    border-radius: 2px;
 }
 
 /* Discrete Layer Control */
